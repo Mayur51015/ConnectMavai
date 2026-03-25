@@ -99,4 +99,21 @@ const uploadAvatar = async (req, res) => {
   }
 };
 
-module.exports = { getUsers, updateProfile, getProfile, uploadAvatar };
+/**
+ * Get a user's public profile by ID
+ * GET /api/users/:userId
+ */
+const getUserById = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.userId)
+      .select('-password')
+      .lean();
+    if (!user) return res.status(404).json({ message: 'User not found.' });
+    res.json(user);
+  } catch (error) {
+    console.error('Get user by ID error:', error);
+    res.status(500).json({ message: 'Server error fetching user profile.' });
+  }
+};
+
+module.exports = { getUsers, updateProfile, getProfile, uploadAvatar, getUserById };

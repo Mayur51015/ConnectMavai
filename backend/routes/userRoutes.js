@@ -1,7 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const { getUsers, updateProfile, getProfile, uploadAvatar } = require('../controllers/userController');
+const { getUsers, updateProfile, getProfile, uploadAvatar, getUserById } = require('../controllers/userController');
 const auth = require('../middleware/auth');
 
 const router = express.Router();
@@ -40,6 +40,9 @@ router.put('/profile', auth, updateProfile);
 
 // POST /api/users/avatar - Upload profile picture
 router.post('/avatar', auth, upload.single('avatar'), uploadAvatar);
+
+// GET /api/users/:userId - Get a user's public profile
+router.get('/:userId', auth, getUserById);
 
 // GET /api/users - Get all users except current (requires auth)
 router.get('/', auth, getUsers);

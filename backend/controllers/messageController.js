@@ -30,7 +30,7 @@ const getMessages = async (req, res) => {
       try {
         return {
           ...msg,
-          message: decrypt(msg.message),
+          message: msg.message ? decrypt(msg.message) : '',
         };
       } catch {
         return { ...msg, message: '[Unable to decrypt]' };
@@ -166,4 +166,28 @@ const deleteChat = async (req, res) => {
   }
 };
 
-module.exports = { getMessages, markAsSeen, editMessage, deleteMessage, deleteChat };
+/**
+ * Upload a file (image, PDF, or voice) for chat
+ * POST /api/messages/upload
+ */
+const uploadFile = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No file uploaded.' });
+    }
+
+    const ext = req.file.originalname.split('.').pop().toLowerCase();
+    let fileType = null;
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) fileType = 'image';
+    else if (ext === 'pdf') fileType = 'pdf';
+    else if (['webm', 'ogg', 'mp3', 'wav', 'm4a'].includes(ext)) fileType = 'voice';
+
+    const fileUrl = `/uploads/files/${req.file.filename}`;
+    res.json({ fileUrl, fileType, fileName: req.file.originalname });
+  } catch (error) {
+    console.error('Upload file error:', error);
+    res.status(500).json({ message: 'Server error uploading file.' });
+  }
+};
+
+module.exports = { getMessages, markAsSeen, editMessage, deleteMessage, deleteChat, uploadFile };

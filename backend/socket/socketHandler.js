@@ -96,11 +96,11 @@ const initializeSocket = (io) => {
     }
 
     /**
-     * Handle sending a direct message
+     * Handle sending a direct message (text and/or file)
      */
     socket.on('sendMessage', async (data, callback) => {
       try {
-        const { receiverId, message } = data;
+        const { receiverId, message, fileUrl, fileType, fileName } = data;
 
         // Check if users are contacts
         const contacts = await areContacts(userId, receiverId);
@@ -109,7 +109,7 @@ const initializeSocket = (io) => {
           return;
         }
 
-        const encryptedMessage = encrypt(message);
+        const encryptedMessage = message ? encrypt(message) : '';
         const isReceiverOnline = onlineUsers.has(receiverId);
         const initialStatus = isReceiverOnline ? 'delivered' : 'sent';
 
@@ -117,6 +117,9 @@ const initializeSocket = (io) => {
           senderId: userId,
           receiverId,
           message: encryptedMessage,
+          fileUrl: fileUrl || null,
+          fileType: fileType || null,
+          fileName: fileName || null,
           status: initialStatus,
           timestamp: new Date(),
         });
@@ -127,7 +130,10 @@ const initializeSocket = (io) => {
           _id: newMessage._id,
           senderId: userId,
           receiverId,
-          message,
+          message: message || '',
+          fileUrl: newMessage.fileUrl,
+          fileType: newMessage.fileType,
+          fileName: newMessage.fileName,
           timestamp: newMessage.timestamp,
           status: newMessage.status,
           edited: false,
@@ -215,11 +221,11 @@ const initializeSocket = (io) => {
     });
 
     /**
-     * Handle sending a room message
+     * Handle sending a room message (text and/or file)
      */
     socket.on('sendRoomMessage', async (data, callback) => {
       try {
-        const { roomId, message } = data;
+        const { roomId, message, fileUrl, fileType, fileName } = data;
 
         // Verify membership
         const room = await Room.findById(roomId);
@@ -228,12 +234,15 @@ const initializeSocket = (io) => {
           return;
         }
 
-        const encryptedMessage = encrypt(message);
+        const encryptedMessage = message ? encrypt(message) : '';
 
         const newMessage = new Message({
           senderId: userId,
           roomId,
           message: encryptedMessage,
+          fileUrl: fileUrl || null,
+          fileType: fileType || null,
+          fileName: fileName || null,
           status: 'sent',
           timestamp: new Date(),
         });
@@ -245,7 +254,10 @@ const initializeSocket = (io) => {
           senderId: userId,
           senderUsername: username,
           roomId,
-          message,
+          message: message || '',
+          fileUrl: newMessage.fileUrl,
+          fileType: newMessage.fileType,
+          fileName: newMessage.fileName,
           timestamp: newMessage.timestamp,
           status: newMessage.status,
           edited: false,
@@ -345,6 +357,76 @@ const initializeSocket = (io) => {
         }
       } catch (error) {
         console.error('Message seen error:', error);
+      }
+    });
+
+    // ========================
+    // WebRTC Video Call Signaling
+    // ========================
+
+    /**
+     * Initiate a video call
+     */
+    socket.on('callUser', ({ to, offer, callerName }) => {
+      const receiverSockets = onlineUsers.get(to);
+      if (receiverSockets) {
+        receiverSockets.forEach((socketId) => {
+          io.to(socketId).emit('incomingCall', {
+            from: userId,
+            callerName: callerName || username,
+            offer,
+          });
+        });
+      } else {
+        socket.emit('callRejected', { reason: 'User is offline' });
+      }
+    });
+
+    /**
+     * Accept a video call
+     */
+    socket.on('callAccepted', ({ to, answer }) => {
+      const callerSockets = onlineUsers.get(to);
+      if (callerSockets) {
+        callerSockets.forEach((socketId) => {
+          io.to(socketId).emit('callAccepted', { from: userId, answer });
+        });
+      }
+    });
+
+    /**
+     * Reject a video call
+     */
+    socket.on('callRejected', ({ to, reason }) => {
+      const callerSockets = onlineUsers.get(to);
+      if (callerSockets) {
+        callerSockets.forEach((socketId) => {
+          io.to(socketId).emit('callRejected', { from: userId, reason: reason || 'Call rejected' });
+        });
+      }
+    });
+
+    /**
+     * Exchange ICE candidates
+     */
+    socket.on('iceCandidate', ({ to, candidate }) => {
+      const peerSockets = onlineUsers.get(to);
+      if (peerSockets) {
+        peerSockets.forEach((socketId) => {
+          io.to(socketId).emit('iceCandidate', { from: userId, candidate });
+        });
+      }
+    });
+
+    /**
+     * End a video call
+     */
+    socket.on('endCall', ({ to }) => {
+      const peerSockets = onlineUsers.get(to);
+      if (peerSockets) {
+        peerSockets.forEach((socketId) => {
+          io.to(socketId).emit('callEnded', { from: userId });
+        });
       }
     });
 

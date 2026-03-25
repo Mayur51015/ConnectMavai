@@ -8,6 +8,8 @@ import ThemeToggle from '../components/ThemeToggle';
 import ProfileModal from '../components/ProfileModal';
 import CreateRoomModal from '../components/CreateRoomModal';
 import ContactRequestsModal from '../components/ContactRequestsModal';
+import UserProfileModal from '../components/UserProfileModal';
+import VideoCall from '../components/VideoCall';
 import api from '../utils/api';
 import toast from 'react-hot-toast';
 
@@ -39,6 +41,13 @@ const Chat = () => {
   const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
   const [showContactRequestsModal, setShowContactRequestsModal] = useState(false);
   const [showRoomInfo, setShowRoomInfo] = useState(false);
+
+  // User Profile Viewing
+  const [viewProfileUserId, setViewProfileUserId] = useState(null);
+
+  // Video Call state
+  const [activeCall, setActiveCall] = useState(null); // { remoteUserId, remoteUserName, isIncoming, offer }
+  const [incomingCall, setIncomingCall] = useState(null); // { from, callerName, offer }
 
   // Responsive
   useEffect(() => {
@@ -156,6 +165,16 @@ const Chat = () => {
       toast(`${username} accepted your contact request!`, { icon: '✅', duration: 3000 });
     };
 
+    // Incoming video call handler
+    const handleIncomingCall = ({ from, callerName, offer }) => {
+      // Don't show if already in a call
+      if (activeCall) {
+        socket.emit('callRejected', { to: from, reason: 'User is busy' });
+        return;
+      }
+      setIncomingCall({ from, callerName, offer });
+    };
+
     socket.on('newMessage', handleNewMessage);
     socket.on('newRoomMessage', handleNewRoomMessage);
     socket.on('messageEdited', handleMessageEdited);
@@ -165,6 +184,7 @@ const Chat = () => {
     socket.on('messagesSeen', handleMessagesSeen);
     socket.on('contactRequestReceived', handleContactRequestReceived);
     socket.on('contactAcceptedNotification', handleContactAccepted);
+    socket.on('incomingCall', handleIncomingCall);
 
     return () => {
       socket.off('newMessage', handleNewMessage);
@@ -176,8 +196,9 @@ const Chat = () => {
       socket.off('messagesSeen', handleMessagesSeen);
       socket.off('contactRequestReceived', handleContactRequestReceived);
       socket.off('contactAcceptedNotification', handleContactAccepted);
+      socket.off('incomingCall', handleIncomingCall);
     };
-  }, [socket, selectedUser, selectedRoom, user, typingUser]);
+  }, [socket, selectedUser, selectedRoom, user, typingUser, activeCall]);
 
   // --- Handlers ---
 
@@ -193,15 +214,29 @@ const Chat = () => {
     if (isMobileView) setShowChat(true);
   };
 
-  const handleSendMessage = (messageText) => {
-    if (!socket || !messageText.trim()) return;
+  const handleSendMessage = (messageText, fileUrl, fileType, fileName) => {
+    if (!socket) return;
+    if (!messageText?.trim() && !fileUrl) return;
+    
     if (selectedRoom) {
-      socket.emit('sendRoomMessage', { roomId: selectedRoom._id, message: messageText.trim() }, (res) => {
+      socket.emit('sendRoomMessage', {
+        roomId: selectedRoom._id,
+        message: messageText?.trim() || '',
+        fileUrl: fileUrl || null,
+        fileType: fileType || null,
+        fileName: fileName || null,
+      }, (res) => {
         if (res.error) toast.error(res.error);
         else setMessages((prev) => [...prev, res]);
       });
     } else if (selectedUser) {
-      socket.emit('sendMessage', { receiverId: selectedUser._id, message: messageText.trim() }, (res) => {
+      socket.emit('sendMessage', {
+        receiverId: selectedUser._id,
+        message: messageText?.trim() || '',
+        fileUrl: fileUrl || null,
+        fileType: fileType || null,
+        fileName: fileName || null,
+      }, (res) => {
         if (res.error) toast.error(res.error);
         else setMessages((prev) => [...prev, res]);
       });
@@ -324,6 +359,38 @@ const Chat = () => {
 
   const handleProfileUpdate = (updatedData) => { updateUser(updatedData); };
 
+  // Video call handlers
+  const handleStartCall = () => {
+    if (!selectedUser || !socket) return;
+    setActiveCall({
+      remoteUserId: selectedUser._id,
+      remoteUserName: selectedUser.username,
+      isIncoming: false,
+      offer: null,
+    });
+  };
+
+  const handleAcceptCall = () => {
+    if (!incomingCall) return;
+    setActiveCall({
+      remoteUserId: incomingCall.from,
+      remoteUserName: incomingCall.callerName,
+      isIncoming: true,
+      offer: incomingCall.offer,
+    });
+    setIncomingCall(null);
+  };
+
+  const handleRejectCall = () => {
+    if (!incomingCall || !socket) return;
+    socket.emit('callRejected', { to: incomingCall.from, reason: 'Call rejected' });
+    setIncomingCall(null);
+  };
+
+  const handleEndCall = () => {
+    setActiveCall(null);
+  };
+
   const isContact = selectedUser ? contactStatuses[selectedUser._id]?.status === 'accepted' : true;
   const selectedContactStatus = selectedUser ? contactStatuses[selectedUser._id] : null;
   const isRoomAdmin = selectedRoom && selectedRoom.admin && (selectedRoom.admin._id || selectedRoom.admin) === user.id;
@@ -384,9 +451,21 @@ const Chat = () => {
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
                   </button>
                 )}
-                <div className="chat-header-info" onClick={() => selectedRoom && setShowRoomInfo(!showRoomInfo)} style={selectedRoom ? { cursor: 'pointer' } : {}}>
+                <div
+                  className="chat-header-info"
+                  onClick={() => {
+                    if (selectedRoom) setShowRoomInfo(!showRoomInfo);
+                    else if (selectedUser) setViewProfileUserId(selectedUser._id);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
                   <div className="chat-user-avatar">
-                    {selectedRoom ? selectedRoom.name.charAt(0).toUpperCase() : selectedUser.username.charAt(0).toUpperCase()}
+                    {selectedRoom
+                      ? selectedRoom.name.charAt(0).toUpperCase()
+                      : getAvatarSrc(selectedUser?.avatar)
+                        ? <img src={getAvatarSrc(selectedUser.avatar)} alt="" className="chat-header-avatar-img" />
+                        : selectedUser.username.charAt(0).toUpperCase()
+                    }
                   </div>
                   <div className="chat-header-text">
                     <h3>{selectedRoom ? selectedRoom.name : selectedUser.username}</h3>
@@ -400,6 +479,15 @@ const Chat = () => {
                   </div>
                 </div>
                 <div className="chat-header-actions">
+                  {/* Video call button (DM only) */}
+                  {selectedUser && isContact && (
+                    <button className="header-action-btn video-call-btn" onClick={handleStartCall} title="Video Call">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polygon points="23 7 16 12 23 17 23 7" />
+                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                      </svg>
+                    </button>
+                  )}
                   {/* Delete chat button for DMs */}
                   {selectedUser && (
                     <button className="header-action-btn" onClick={handleDeleteChat} title="Delete Chat">
@@ -443,8 +531,18 @@ const Chat = () => {
                       const isAdmin = (selectedRoom.admin?._id || selectedRoom.admin) === memberId;
                       return (
                         <div key={memberId} className="room-member-item">
-                          <div className="room-member-avatar">{memberName.charAt(0).toUpperCase()}</div>
-                          <span className="room-member-name">{memberName}</span>
+                          <div
+                            className="room-member-avatar clickable"
+                            onClick={() => setViewProfileUserId(memberId)}
+                          >
+                            {memberName.charAt(0).toUpperCase()}
+                          </div>
+                          <span
+                            className="room-member-name clickable-name"
+                            onClick={() => setViewProfileUserId(memberId)}
+                          >
+                            {memberName}
+                          </span>
                           {isAdmin && <span className="room-admin-badge">Admin</span>}
                           {isRoomAdmin && !isAdmin && memberId !== user.id && (
                             <button className="room-remove-member-btn" onClick={() => handleRemoveMember(memberId)} title="Remove">
@@ -486,6 +584,7 @@ const Chat = () => {
                 onEditMessage={selectedRoom ? null : handleEditMessage}
                 onDeleteMessage={handleDeleteMessage}
                 isRoom={!!selectedRoom}
+                onViewProfile={(userId) => setViewProfileUserId(userId)}
               />
 
               {/* Message input */}
@@ -515,6 +614,55 @@ const Chat = () => {
       {showProfileModal && <ProfileModal user={user} onClose={() => setShowProfileModal(false)} onProfileUpdate={handleProfileUpdate} />}
       {showCreateRoomModal && <CreateRoomModal users={users} onClose={() => setShowCreateRoomModal(false)} onRoomCreated={handleRoomCreated} api={api} />}
       {showContactRequestsModal && <ContactRequestsModal pendingRequests={pendingRequests} onClose={() => setShowContactRequestsModal(false)} onAccept={handleAcceptRequest} onReject={handleRejectRequest} />}
+
+      {/* User Profile View Modal */}
+      {viewProfileUserId && (
+        <UserProfileModal
+          userId={viewProfileUserId}
+          onClose={() => setViewProfileUserId(null)}
+          onlineUsers={onlineUsers}
+        />
+      )}
+
+      {/* Incoming Call Modal */}
+      {incomingCall && !activeCall && (
+        <div className="video-call-overlay">
+          <div className="video-call-incoming">
+            <div className="incoming-call-pulse"></div>
+            <div className="incoming-call-avatar">
+              {incomingCall.callerName?.charAt(0).toUpperCase() || '?'}
+            </div>
+            <h2 className="incoming-call-name">{incomingCall.callerName || 'Unknown'}</h2>
+            <p className="incoming-call-label">Incoming video call...</p>
+            <div className="incoming-call-actions">
+              <button className="call-reject-btn" onClick={handleRejectCall} title="Reject">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91" />
+                  <line x1="23" y1="1" x2="1" y2="23" />
+                </svg>
+              </button>
+              <button className="call-accept-btn" onClick={handleAcceptCall} title="Accept">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active Video Call */}
+      {activeCall && (
+        <VideoCall
+          socket={socket}
+          currentUserId={user.id}
+          remoteUserId={activeCall.remoteUserId}
+          remoteUserName={activeCall.remoteUserName}
+          isIncoming={activeCall.isIncoming}
+          incomingOffer={activeCall.offer}
+          onClose={handleEndCall}
+        />
+      )}
     </div>
   );
 };

@@ -4,14 +4,15 @@ import TypingIndicator from './TypingIndicator';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
 /**
- * ChatWindow - messages with editing, deletion, room sender names
+ * ChatWindow - messages with editing, deletion, file attachments, voice messages, room sender names
  */
-const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loadingMessages, hasMore, onLoadMore, onEditMessage, onDeleteMessage, isRoom }) => {
+const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loadingMessages, hasMore, onLoadMore, onEditMessage, onDeleteMessage, isRoom, onViewProfile }) => {
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
   const prevScrollHeight = useRef(0);
   const [editingId, setEditingId] = useState(null);
   const [editText, setEditText] = useState('');
+  const [lightboxImage, setLightboxImage] = useState(null);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -80,6 +81,59 @@ const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loading
     if (e.key === 'Escape') cancelEditing();
   };
 
+  const getFileUrl = (fileUrl) => {
+    if (fileUrl && fileUrl.startsWith('/uploads')) return `${API_URL}${fileUrl}`;
+    return fileUrl;
+  };
+
+  // Render file attachment
+  const renderFileContent = (msg) => {
+    if (!msg.fileUrl) return null;
+
+    const fullUrl = getFileUrl(msg.fileUrl);
+
+    if (msg.fileType === 'image') {
+      return (
+        <div className="message-file-image" onClick={() => setLightboxImage(fullUrl)}>
+          <img src={fullUrl} alt={msg.fileName || 'Image'} loading="lazy" />
+        </div>
+      );
+    }
+
+    if (msg.fileType === 'pdf') {
+      return (
+        <a href={fullUrl} target="_blank" rel="noopener noreferrer" className="message-file-pdf" download>
+          <div className="pdf-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+          </div>
+          <div className="pdf-info">
+            <span className="pdf-name">{msg.fileName || 'Document.pdf'}</span>
+            <span className="pdf-label">PDF · Click to download</span>
+          </div>
+        </a>
+      );
+    }
+
+    if (msg.fileType === 'voice') {
+      return (
+        <div className="message-voice">
+          <audio controls preload="metadata" className="voice-audio-player">
+            <source src={fullUrl} type="audio/webm" />
+            Your browser does not support audio.
+          </audio>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="chat-messages" ref={chatContainerRef} onScroll={handleScroll}>
       {loadingMessages && (
@@ -101,8 +155,16 @@ const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loading
             <div className={`message-wrapper ${isSent ? 'sent' : 'received'}`}>
               <div className={`message-bubble ${isSent ? 'sent' : 'received'}`}>
                 {isRoom && !isSent && (
-                  <span className="room-sender-name">{msg.senderUsername || msg.senderId?.username || 'User'}</span>
+                  <span
+                    className="room-sender-name clickable-name"
+                    onClick={() => onViewProfile && onViewProfile(msg.senderId?._id || msg.senderId)}
+                  >
+                    {msg.senderUsername || msg.senderId?.username || 'User'}
+                  </span>
                 )}
+
+                {/* File attachment rendering */}
+                {renderFileContent(msg)}
 
                 {isEditing ? (
                   <div className="message-edit-mode">
@@ -118,7 +180,7 @@ const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loading
                   </div>
                 ) : (
                   <>
-                    <p className="message-text">{msg.message}</p>
+                    {msg.message && <p className="message-text">{msg.message}</p>}
                     <div className="message-meta">
                       {msg.edited && <span className="message-edited-label">edited</span>}
                       <span className="message-time">{formatTime(msg.timestamp)}</span>
@@ -130,7 +192,7 @@ const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loading
                 {/* Action buttons for sent messages */}
                 {isSent && !isEditing && (
                   <div className="message-action-btns">
-                    {onEditMessage && !isRoom && (
+                    {onEditMessage && !isRoom && !msg.fileUrl && (
                       <button className="message-edit-btn" onClick={() => startEditing(msg)} title="Edit">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
@@ -160,6 +222,18 @@ const ChatWindow = ({ messages, currentUserId, typingUser, selectedUser, loading
         </div>
       )}
       <div ref={messagesEndRef} />
+
+      {/* Image Lightbox */}
+      {lightboxImage && (
+        <div className="image-lightbox" onClick={() => setLightboxImage(null)}>
+          <button className="lightbox-close" onClick={() => setLightboxImage(null)}>
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+          <img src={lightboxImage} alt="Full size" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
     </div>
   );
 };
