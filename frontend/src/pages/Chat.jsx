@@ -46,8 +46,12 @@ const Chat = () => {
   const [viewProfileUserId, setViewProfileUserId] = useState(null);
 
   // Video Call state
-  const [activeCall, setActiveCall] = useState(null); // { remoteUserId, remoteUserName, isIncoming, offer }
-  const [incomingCall, setIncomingCall] = useState(null); // { from, callerName, offer }
+  const [activeCall, setActiveCall] = useState(null); // { remoteUserId, remoteUserName, isIncoming, offer, callType, callLogId }
+  const [incomingCall, setIncomingCall] = useState(null); // { from, callerName, offer, callType, callLogId }
+
+  // Calls dashboard state
+  const [callHistory, setCallHistory] = useState([]);
+  const [favourites, setFavourites] = useState([]);
 
   // Responsive
   useEffect(() => {
@@ -59,20 +63,24 @@ const Chat = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch users, rooms, contact statuses, pending requests
+  // Fetch users, rooms, contact statuses, pending requests, call history, favourites
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [usersRes, roomsRes, statusesRes, pendingRes] = await Promise.allSettled([
+        const [usersRes, roomsRes, statusesRes, pendingRes, callsRes, favsRes] = await Promise.allSettled([
           api.get('/api/users'),
           api.get('/api/rooms'),
           api.get('/api/contacts/statuses'),
           api.get('/api/contacts/pending'),
+          api.get('/api/calls'),
+          api.get('/api/calls/favourites'),
         ]);
         if (usersRes.status === 'fulfilled') setUsers(usersRes.value.data);
         if (roomsRes.status === 'fulfilled') setRooms(roomsRes.value.data);
         if (statusesRes.status === 'fulfilled') setContactStatuses(statusesRes.value.data);
         if (pendingRes.status === 'fulfilled') setPendingRequests(pendingRes.value.data);
+        if (callsRes.status === 'fulfilled') setCallHistory(callsRes.value.data.calls || []);
+        if (favsRes.status === 'fulfilled') setFavourites(favsRes.value.data || []);
       } catch { /* ignore */ }
     };
     fetchAll();
@@ -165,14 +173,30 @@ const Chat = () => {
       toast(`${username} accepted your contact request!`, { icon: '✅', duration: 3000 });
     };
 
-    // Incoming video call handler
-    const handleIncomingCall = ({ from, callerName, offer }) => {
+    // Incoming video/voice call handler
+    const handleIncomingCall = ({ from, callerName, offer, callType, callLogId }) => {
       // Don't show if already in a call
       if (activeCall) {
-        socket.emit('callRejected', { to: from, reason: 'User is busy' });
+        socket.emit('callRejected', { to: from, reason: 'User is busy', callLogId });
         return;
       }
-      setIncomingCall({ from, callerName, offer });
+      setIncomingCall({ from, callerName, offer, callType: callType || 'video', callLogId });
+    };
+
+    // Call log updated handler — updates call history in real-time
+    const handleCallLogUpdated = (callLog) => {
+      setCallHistory((prev) => {
+        const exists = prev.find((c) => c._id === callLog._id);
+        const updatedLog = {
+          ...callLog,
+          direction: callLog.caller?._id === user.id ? 'outgoing' : 'incoming',
+          otherUser: callLog.caller?._id === user.id ? callLog.receiver : callLog.caller,
+        };
+        if (exists) {
+          return prev.map((c) => (c._id === callLog._id ? updatedLog : c));
+        }
+        return [updatedLog, ...prev];
+      });
     };
 
     socket.on('newMessage', handleNewMessage);
@@ -185,6 +209,7 @@ const Chat = () => {
     socket.on('contactRequestReceived', handleContactRequestReceived);
     socket.on('contactAcceptedNotification', handleContactAccepted);
     socket.on('incomingCall', handleIncomingCall);
+    socket.on('callLogUpdated', handleCallLogUpdated);
 
     return () => {
       socket.off('newMessage', handleNewMessage);
@@ -197,6 +222,7 @@ const Chat = () => {
       socket.off('contactRequestReceived', handleContactRequestReceived);
       socket.off('contactAcceptedNotification', handleContactAccepted);
       socket.off('incomingCall', handleIncomingCall);
+      socket.off('callLogUpdated', handleCallLogUpdated);
     };
   }, [socket, selectedUser, selectedRoom, user, typingUser, activeCall]);
 
@@ -360,13 +386,28 @@ const Chat = () => {
   const handleProfileUpdate = (updatedData) => { updateUser(updatedData); };
 
   // Video call handlers
-  const handleStartCall = () => {
+  const handleStartCall = (callType = 'video') => {
     if (!selectedUser || !socket) return;
     setActiveCall({
       remoteUserId: selectedUser._id,
       remoteUserName: selectedUser.username,
       isIncoming: false,
       offer: null,
+      callType,
+      callLogId: null,
+    });
+  };
+
+  // Call from the Calls tab (takes userId, username, callType directly)
+  const handleCallFromTab = (userId, username, callType = 'video') => {
+    if (!socket) return;
+    setActiveCall({
+      remoteUserId: userId,
+      remoteUserName: username,
+      isIncoming: false,
+      offer: null,
+      callType,
+      callLogId: null,
     });
   };
 
@@ -377,18 +418,37 @@ const Chat = () => {
       remoteUserName: incomingCall.callerName,
       isIncoming: true,
       offer: incomingCall.offer,
+      callType: incomingCall.callType || 'video',
+      callLogId: incomingCall.callLogId,
     });
     setIncomingCall(null);
   };
 
   const handleRejectCall = () => {
     if (!incomingCall || !socket) return;
-    socket.emit('callRejected', { to: incomingCall.from, reason: 'Call rejected' });
+    socket.emit('callRejected', { to: incomingCall.from, reason: 'Call rejected', callLogId: incomingCall.callLogId });
     setIncomingCall(null);
   };
 
   const handleEndCall = () => {
     setActiveCall(null);
+  };
+
+  // Favourite toggle
+  const handleToggleFavourite = async (userId, isCurrentlyFav) => {
+    try {
+      if (isCurrentlyFav) {
+        const res = await api.delete(`/api/calls/favourites/${userId}`);
+        setFavourites(res.data);
+        toast.success('Removed from favourites');
+      } else {
+        const res = await api.post(`/api/calls/favourites/${userId}`);
+        setFavourites(res.data);
+        toast.success('Added to favourites');
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update favourites');
+    }
   };
 
   const isContact = selectedUser ? contactStatuses[selectedUser._id]?.status === 'accepted' : true;
@@ -437,6 +497,8 @@ const Chat = () => {
             onSelectRoom={handleSelectRoom} onCreateRoom={() => setShowCreateRoomModal(true)}
             contactStatuses={contactStatuses} onSendContactRequest={handleSendContactRequest}
             pendingRequestCount={pendingRequests.length} onShowContactRequests={() => setShowContactRequestsModal(true)}
+            callHistory={callHistory} favourites={favourites}
+            onCallUser={handleCallFromTab} onToggleFavourite={handleToggleFavourite}
           />
         </div>
 
@@ -481,12 +543,19 @@ const Chat = () => {
                 <div className="chat-header-actions">
                   {/* Video call button (DM only) */}
                   {selectedUser && isContact && (
-                    <button className="header-action-btn video-call-btn" onClick={handleStartCall} title="Video Call">
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <polygon points="23 7 16 12 23 17 23 7" />
-                        <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                      </svg>
-                    </button>
+                    <>
+                      <button className="header-action-btn video-call-btn" onClick={() => handleStartCall('video')} title="Video Call">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polygon points="23 7 16 12 23 17 23 7" />
+                          <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                        </svg>
+                      </button>
+                      <button className="header-action-btn voice-call-btn" onClick={() => handleStartCall('voice')} title="Voice Call">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+                        </svg>
+                      </button>
+                    </>
                   )}
                   {/* Delete chat button for DMs */}
                   {selectedUser && (
@@ -633,7 +702,7 @@ const Chat = () => {
               {incomingCall.callerName?.charAt(0).toUpperCase() || '?'}
             </div>
             <h2 className="incoming-call-name">{incomingCall.callerName || 'Unknown'}</h2>
-            <p className="incoming-call-label">Incoming video call...</p>
+            <p className="incoming-call-label">Incoming {incomingCall.callType === 'voice' ? 'voice' : 'video'} call...</p>
             <div className="incoming-call-actions">
               <button className="call-reject-btn" onClick={handleRejectCall} title="Reject">
                 <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -660,6 +729,8 @@ const Chat = () => {
           remoteUserName={activeCall.remoteUserName}
           isIncoming={activeCall.isIncoming}
           incomingOffer={activeCall.offer}
+          callType={activeCall.callType || 'video'}
+          callLogId={activeCall.callLogId}
           onClose={handleEndCall}
         />
       )}

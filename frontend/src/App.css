@@ -242,6 +242,7 @@
   height: 100vh;
   display: flex;
   background: var(--bg-primary);
+  overflow: hidden;
 }
 
 .chat-layout {
@@ -2665,5 +2666,560 @@
 
   .user-profile-modal {
     max-width: 340px;
+  }
+}
+
+/* =============================================
+   CALLS DASHBOARD TAB
+   ============================================= */
+
+.calls-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.calls-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 10px;
+}
+
+.calls-tab-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.calls-new-call-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.calls-new-call-btn:hover {
+  background: var(--primary-light);
+}
+
+.calls-plus-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+}
+
+/* Calls search */
+.calls-search {
+  padding: 4px 12px 10px;
+}
+
+.calls-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+}
+
+/* Section titles */
+.calls-section-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 10px 12px 6px;
+}
+
+.calls-section-divider {
+  height: 1px;
+  background: var(--border-light);
+  margin: 8px 12px;
+}
+
+/* =============================================
+   FAVOURITES SECTION
+   ============================================= */
+
+.favourite-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-out both;
+}
+
+.favourite-item:hover {
+  background: var(--bg-hover);
+}
+
+.favourite-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.favourite-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.favourite-name {
+  font-weight: 600;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+.favourite-remove-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #F59E0B;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.favourite-remove-btn:hover {
+  background: rgba(245, 158, 11, 0.12);
+  transform: scale(1.15);
+}
+
+.calls-view-all-btn {
+  display: block;
+  width: auto;
+  margin: 4px auto 4px;
+  padding: 4px 16px;
+  border: none;
+  background: transparent;
+  color: var(--primary);
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.calls-view-all-btn:hover {
+  color: var(--primary-hover);
+  text-decoration: underline;
+}
+
+/* =============================================
+   CALL ACTION BUTTONS
+   ============================================= */
+
+.call-action-buttons {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.call-action-btn {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.call-action-btn:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+  transform: scale(1.1);
+}
+
+.call-action-btn-sm {
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.call-action-btn-sm:hover {
+  background: var(--primary-light);
+  color: var(--primary);
+}
+
+.call-fav-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.call-fav-btn:hover {
+  color: #F59E0B;
+  transform: scale(1.15);
+}
+
+.call-fav-btn.active {
+  color: #F59E0B;
+}
+
+/* =============================================
+   CALL STATUS DOT
+   ============================================= */
+
+.call-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
+}
+
+.call-status-dot.online {
+  background: var(--online);
+}
+
+.call-status-dot.offline {
+  background: var(--offline);
+}
+
+/* =============================================
+   RECENT CALLS SECTION
+   ============================================= */
+
+.call-log-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: default;
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-out both;
+}
+
+.call-log-item:hover {
+  background: var(--bg-hover);
+}
+
+.call-log-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.call-log-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.call-log-name {
+  font-weight: 600;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.call-log-name.missed {
+  color: #EF4444;
+}
+
+.call-log-detail {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.call-direction-icon {
+  display: flex;
+  align-items: center;
+  color: var(--online);
+}
+
+.call-direction-icon.outgoing {
+  color: var(--online);
+}
+
+.call-direction-icon.incoming {
+  color: var(--primary);
+}
+
+.call-direction-icon.missed {
+  color: #EF4444;
+}
+
+.call-log-type {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.call-log-duration {
+  font-size: 0.8rem;
+  color: var(--text-tertiary);
+}
+
+.call-log-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  min-width: fit-content;
+}
+
+.call-log-time {
+  font-size: 0.75rem;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+.call-log-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Call log stagger animation */
+.call-log-item:nth-child(1) { animation-delay: 0.02s; }
+.call-log-item:nth-child(2) { animation-delay: 0.04s; }
+.call-log-item:nth-child(3) { animation-delay: 0.06s; }
+.call-log-item:nth-child(4) { animation-delay: 0.08s; }
+.call-log-item:nth-child(5) { animation-delay: 0.1s; }
+.call-log-item:nth-child(6) { animation-delay: 0.12s; }
+.call-log-item:nth-child(7) { animation-delay: 0.14s; }
+.call-log-item:nth-child(8) { animation-delay: 0.16s; }
+
+/* =============================================
+   CALLS SEARCH RESULTS
+   ============================================= */
+
+.call-contact-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  animation: fadeIn 0.3s ease-out both;
+}
+
+.call-contact-item:hover {
+  background: var(--bg-hover);
+}
+
+.call-avatar {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 700;
+  font-size: 1.05rem;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+
+.call-contact-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.call-contact-name {
+  font-weight: 600;
+  font-size: 0.93rem;
+  color: var(--text-primary);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.call-contact-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+/* =============================================
+   CALLS EMPTY STATE
+   ============================================= */
+
+.calls-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 20px;
+  gap: 8px;
+  text-align: center;
+}
+
+.calls-empty p {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.calls-empty span {
+  font-size: 0.82rem;
+  color: var(--text-tertiary);
+}
+
+/* =============================================
+   SIDEBAR TAB ICONS
+   ============================================= */
+
+.sidebar-tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.sidebar-tab svg {
+  flex-shrink: 0;
+}
+
+/* =============================================
+   VOICE CALL UI
+   ============================================= */
+
+.video-call-container.voice-only {
+  background: linear-gradient(145deg, #0a0e1a, #1a1040, #0a1628);
+  background-size: 200% 200%;
+  animation: gradientShift 8s ease infinite;
+}
+
+.voice-call-bg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.voice-call-avatar-large {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 3rem;
+  font-weight: 700;
+  box-shadow: 0 0 60px rgba(108, 99, 255, 0.3);
+  animation: voiceCallPulse 3s ease-in-out infinite;
+}
+
+@keyframes voiceCallPulse {
+  0%, 100% { box-shadow: 0 0 40px rgba(108, 99, 255, 0.2); transform: scale(1); }
+  50% { box-shadow: 0 0 80px rgba(108, 99, 255, 0.4); transform: scale(1.03); }
+}
+
+/* Voice call button in header */
+.voice-call-btn {
+  color: var(--primary);
+}
+
+.voice-call-btn:hover {
+  background: var(--primary-light);
+}
+
+/* =============================================
+   CALLS RESPONSIVE
+   ============================================= */
+
+@media (max-width: 768px) {
+  .calls-tab-header {
+    padding: 12px 12px 8px;
+  }
+
+  .calls-search {
+    padding: 2px 8px 8px;
+  }
+
+  .calls-content {
+    padding: 0 4px 4px;
+  }
+
+  .call-log-item,
+  .favourite-item,
+  .call-contact-item {
+    padding: 8px 8px;
+  }
+
+  .call-log-avatar,
+  .favourite-avatar,
+  .call-avatar {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    font-size: 0.9rem;
+  }
+
+  .voice-call-avatar-large {
+    width: 100px;
+    height: 100px;
+    font-size: 2.5rem;
   }
 }

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
+import toast from 'react-hot-toast';
 
 const ICE_SERVERS = {
   iceServers: [
@@ -11,17 +12,19 @@ const ICE_SERVERS = {
  * VideoCall component - WebRTC peer-to-peer video calling
  * Handles both outgoing and incoming calls
  */
-const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isIncoming, incomingOffer, onClose }) => {
+const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isIncoming, incomingOffer, callType = 'video', callLogId: initialCallLogId, onClose }) => {
   const [callState, setCallState] = useState(isIncoming ? 'ringing' : 'calling'); // calling | ringing | connected | ended
   const [isMuted, setIsMuted] = useState(false);
-  const [isCameraOff, setIsCameraOff] = useState(false);
+  const [isCameraOff, setIsCameraOff] = useState(callType === 'voice');
   const [callDuration, setCallDuration] = useState(0);
+  const isVoiceOnly = callType === 'voice';
 
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnectionRef = useRef(null);
   const localStreamRef = useRef(null);
   const timerRef = useRef(null);
+  const callLogIdRef = useRef(initialCallLogId || null);
 
   // Cleanup function
   const cleanup = useCallback(() => {
@@ -80,9 +83,13 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
   // Initiate outgoing call
   const initiateCall = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const constraints = isVoiceOnly
+        ? { video: false, audio: true }
+        : { video: true, audio: true };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current && !isVoiceOnly) localVideoRef.current.srcObject = stream;
 
       const pc = createPeerConnection();
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -93,21 +100,31 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
       socket.emit('callUser', {
         to: remoteUserId,
         offer: pc.localDescription,
-        callerName: undefined, // Will use socket username
+        callerName: undefined,
+        callType,
       });
     } catch (error) {
       console.error('Failed to start call:', error);
+      if (error.name === 'NotAllowedError' || error.name === 'NotFoundError') {
+        toast.error(isVoiceOnly ? 'Microphone access denied' : 'Camera/Microphone access denied');
+      } else {
+        toast.error('Failed to start call');
+      }
       handleEndCall();
     }
-  }, [socket, remoteUserId, createPeerConnection]);
+  }, [socket, remoteUserId, createPeerConnection, isVoiceOnly, callType]);
 
   // Accept incoming call
   const acceptCall = useCallback(async () => {
     try {
       setCallState('connected');
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const constraints = isVoiceOnly
+        ? { video: false, audio: true }
+        : { video: true, audio: true };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
-      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
+      if (localVideoRef.current && !isVoiceOnly) localVideoRef.current.srcObject = stream;
 
       const pc = createPeerConnection();
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
@@ -116,28 +133,28 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
-      socket.emit('callAccepted', { to: remoteUserId, answer: pc.localDescription });
+      socket.emit('callAccepted', { to: remoteUserId, answer: pc.localDescription, callLogId: callLogIdRef.current });
       startTimer();
     } catch (error) {
       console.error('Failed to accept call:', error);
       handleEndCall();
     }
-  }, [socket, remoteUserId, incomingOffer, createPeerConnection, startTimer]);
+  }, [socket, remoteUserId, incomingOffer, createPeerConnection, startTimer, isVoiceOnly]);
 
   // Reject incoming call
   const rejectCall = useCallback(() => {
-    socket.emit('callRejected', { to: remoteUserId, reason: 'Call rejected' });
+    socket.emit('callRejected', { to: remoteUserId, reason: 'Call rejected', callLogId: callLogIdRef.current });
     cleanup();
     onClose();
   }, [socket, remoteUserId, cleanup, onClose]);
 
   // End call
   const handleEndCall = useCallback(() => {
-    socket.emit('endCall', { to: remoteUserId });
+    socket.emit('endCall', { to: remoteUserId, callLogId: callLogIdRef.current, duration: callDuration });
     setCallState('ended');
     cleanup();
     onClose();
-  }, [socket, remoteUserId, cleanup, onClose]);
+  }, [socket, remoteUserId, cleanup, onClose, callDuration]);
 
   // Toggle mute
   const toggleMute = () => {
@@ -163,8 +180,9 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
   useEffect(() => {
     if (!socket) return;
 
-    const handleCallAccepted = async ({ answer }) => {
+    const handleCallAccepted = async ({ answer, callLogId }) => {
       try {
+        if (callLogId) callLogIdRef.current = callLogId;
         if (peerConnectionRef.current) {
           await peerConnectionRef.current.setRemoteDescription(new RTCSessionDescription(answer));
           setCallState('connected');
@@ -186,15 +204,18 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
     };
 
     const handleCallRejected = ({ reason }) => {
+      const msg = reason || 'Call rejected';
+      toast.error(msg, { icon: '📵' });
       setCallState('ended');
       cleanup();
-      onClose();
+      // Short delay so user sees the 'ended' state
+      setTimeout(() => onClose(), 1500);
     };
 
     const handleCallEnded = () => {
       setCallState('ended');
       cleanup();
-      onClose();
+      setTimeout(() => onClose(), 1000);
     };
 
     socket.on('callAccepted', handleCallAccepted);
@@ -228,7 +249,7 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
             {remoteUserName?.charAt(0).toUpperCase() || '?'}
           </div>
           <h2 className="incoming-call-name">{remoteUserName || 'Unknown'}</h2>
-          <p className="incoming-call-label">Incoming video call...</p>
+          <p className="incoming-call-label">Incoming {isVoiceOnly ? 'voice' : 'video'} call...</p>
           <div className="incoming-call-actions">
             <button className="call-reject-btn" onClick={rejectCall} title="Reject">
               <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -249,23 +270,39 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
 
   return (
     <div className="video-call-overlay">
-      <div className="video-call-container">
-        {/* Remote video (full screen) */}
-        <video
-          ref={remoteVideoRef}
-          autoPlay
-          playsInline
-          className="video-call-remote"
-        />
+      <div className={`video-call-container ${isVoiceOnly ? 'voice-only' : ''}`}>
+        {/* Remote video (full screen) — hidden in voice-only */}
+        {!isVoiceOnly && (
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="video-call-remote"
+          />
+        )}
 
-        {/* Local video (picture-in-picture) */}
-        <video
-          ref={localVideoRef}
-          autoPlay
-          playsInline
-          muted
-          className="video-call-local"
-        />
+        {/* Remote audio element for voice-only calls */}
+        {isVoiceOnly && (
+          <>
+            <audio ref={remoteVideoRef} autoPlay />
+            <div className="voice-call-bg">
+              <div className="voice-call-avatar-large">
+                {remoteUserName?.charAt(0).toUpperCase() || '?'}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Local video (picture-in-picture) — hidden in voice calls */}
+        {!isVoiceOnly && (
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            className="video-call-local"
+          />
+        )}
 
         {/* Call info */}
         <div className="video-call-info">
@@ -297,24 +334,26 @@ const VideoCall = ({ socket, currentUserId, remoteUserId, remoteUserName, isInco
             )}
           </button>
 
-          <button
-            className={`video-call-control-btn ${isCameraOff ? 'active' : ''}`}
-            onClick={toggleCamera}
-            title={isCameraOff ? 'Turn on camera' : 'Turn off camera'}
-          >
-            {isCameraOff ? (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M16.5 7.5l5-3v15l-5-3" />
-                <line x1="1" y1="1" x2="23" y2="23" />
-                <path d="M7.5 4.5h8a2 2 0 0 1 2 2v8m-2 2h-10a2 2 0 0 1-2-2v-10" />
-              </svg>
-            ) : (
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polygon points="23 7 16 12 23 17 23 7" />
-                <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-              </svg>
-            )}
-          </button>
+          {!isVoiceOnly && (
+            <button
+              className={`video-call-control-btn ${isCameraOff ? 'active' : ''}`}
+              onClick={toggleCamera}
+              title={isCameraOff ? 'Turn on camera' : 'Turn off camera'}
+            >
+              {isCameraOff ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16.5 7.5l5-3v15l-5-3" />
+                  <line x1="1" y1="1" x2="23" y2="23" />
+                  <path d="M7.5 4.5h8a2 2 0 0 1 2 2v8m-2 2h-10a2 2 0 0 1-2-2v-10" />
+                </svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="23 7 16 12 23 17 23 7" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+                </svg>
+              )}
+            </button>
+          )}
 
           <button className="video-call-end-btn" onClick={handleEndCall} title="End call">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

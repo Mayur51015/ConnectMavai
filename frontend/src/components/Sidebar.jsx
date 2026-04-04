@@ -1,10 +1,18 @@
 import { useState } from 'react';
+import CallsTab from './CallsTab';
 
 /**
- * Sidebar component - displays list of users/rooms with search, online status, unread badges
- * Supports tabs: Users | Rooms
+ * Sidebar component - displays list of users/rooms/calls with search, online status, unread badges
+ * Supports tabs: Users | Rooms | Calls
  */
-const Sidebar = ({ users, onlineUsers, selectedUser, onSelectUser, unreadCounts, currentUser, rooms, selectedRoom, onSelectRoom, onCreateRoom, contactStatuses, onSendContactRequest, pendingRequestCount, onShowContactRequests }) => {
+const Sidebar = ({
+  users, onlineUsers, selectedUser, onSelectUser, unreadCounts, currentUser,
+  rooms, selectedRoom, onSelectRoom, onCreateRoom,
+  contactStatuses, onSendContactRequest,
+  pendingRequestCount, onShowContactRequests,
+  // Calls props
+  callHistory, favourites, onCallUser, onToggleFavourite,
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState('users');
 
@@ -58,13 +66,31 @@ const Sidebar = ({ users, onlineUsers, selectedUser, onSelectUser, unreadCounts,
           className={`sidebar-tab ${activeTab === 'users' ? 'active' : ''}`}
           onClick={() => setActiveTab('users')}
         >
-          Users
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Chats
         </button>
         <button
           className={`sidebar-tab ${activeTab === 'rooms' ? 'active' : ''}`}
           onClick={() => setActiveTab('rooms')}
         >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
           Rooms
+        </button>
+        <button
+          className={`sidebar-tab ${activeTab === 'calls' ? 'active' : ''}`}
+          onClick={() => setActiveTab('calls')}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+          </svg>
+          Calls
         </button>
         {pendingRequestCount > 0 && (
           <button className="sidebar-requests-btn" onClick={onShowContactRequests} title="Contact Requests">
@@ -79,29 +105,31 @@ const Sidebar = ({ users, onlineUsers, selectedUser, onSelectUser, unreadCounts,
         )}
       </div>
 
-      {/* Search bar */}
-      <div className="sidebar-search">
-        <div className="search-wrapper">
-          <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="11" cy="11" r="8" />
-            <path d="M21 21l-4.35-4.35" />
-          </svg>
-          <input
-            type="text"
-            placeholder={activeTab === 'users' ? 'Search users...' : 'Search rooms...'}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          {searchQuery && (
-            <button className="search-clear" onClick={() => setSearchQuery('')}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18" />
-                <line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-          )}
+      {/* Search bar (for users and rooms tabs) */}
+      {activeTab !== 'calls' && (
+        <div className="sidebar-search">
+          <div className="search-wrapper">
+            <svg className="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              placeholder={activeTab === 'users' ? 'Search users...' : 'Search rooms...'}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            {searchQuery && (
+              <button className="search-clear" onClick={() => setSearchQuery('')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Users Tab */}
       {activeTab === 'users' && (
@@ -207,8 +235,23 @@ const Sidebar = ({ users, onlineUsers, selectedUser, onSelectUser, unreadCounts,
           )}
         </div>
       )}
+
+      {/* Calls Tab */}
+      {activeTab === 'calls' && (
+        <CallsTab
+          callHistory={callHistory}
+          favourites={favourites}
+          onlineUsers={onlineUsers}
+          onCallUser={onCallUser}
+          onToggleFavourite={onToggleFavourite}
+          currentUser={currentUser}
+          users={users}
+          contactStatuses={contactStatuses}
+        />
+      )}
     </div>
   );
 };
 
 export default Sidebar;
+

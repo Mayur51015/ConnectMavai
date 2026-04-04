@@ -3,6 +3,7 @@ const User = require('../models/User');
 const Message = require('../models/Message');
 const Room = require('../models/Room');
 const ContactRequest = require('../models/ContactRequest');
+const CallLog = require('../models/CallLog');
 const { encrypt, decrypt } = require('../utils/encryption');
 
 /**
@@ -365,39 +366,118 @@ const initializeSocket = (io) => {
     // ========================
 
     /**
-     * Initiate a video call
+     * Initiate a video/voice call
+     * Creates a CallLog record with status 'ringing'
      */
-    socket.on('callUser', ({ to, offer, callerName }) => {
-      const receiverSockets = onlineUsers.get(to);
-      if (receiverSockets) {
-        receiverSockets.forEach((socketId) => {
-          io.to(socketId).emit('incomingCall', {
-            from: userId,
-            callerName: callerName || username,
-            offer,
-          });
+    socket.on('callUser', async ({ to, offer, callerName, callType }) => {
+      const type = callType || 'video';
+
+      // Create a call log entry
+      try {
+        const callLog = new CallLog({
+          caller: userId,
+          receiver: to,
+          callType: type,
+          status: 'ringing',
+          startedAt: new Date(),
         });
-      } else {
-        socket.emit('callRejected', { reason: 'User is offline' });
+        await callLog.save();
+
+        const receiverSockets = onlineUsers.get(to);
+        if (receiverSockets) {
+          receiverSockets.forEach((socketId) => {
+            io.to(socketId).emit('incomingCall', {
+              from: userId,
+              callerName: callerName || username,
+              offer,
+              callType: type,
+              callLogId: callLog._id.toString(),
+            });
+          });
+        } else {
+          // User offline — mark as missed
+          callLog.status = 'missed';
+          callLog.endedAt = new Date();
+          await callLog.save();
+          socket.emit('callRejected', { reason: 'User is offline' });
+
+          // Emit updated call log to caller
+          const populated = await CallLog.findById(callLog._id)
+            .populate('caller', 'username displayName avatar')
+            .populate('receiver', 'username displayName avatar')
+            .lean();
+          socket.emit('callLogUpdated', populated);
+        }
+      } catch (error) {
+        console.error('Error creating call log:', error);
+        // Still attempt the call even if logging fails
+        const receiverSockets = onlineUsers.get(to);
+        if (receiverSockets) {
+          receiverSockets.forEach((socketId) => {
+            io.to(socketId).emit('incomingCall', {
+              from: userId,
+              callerName: callerName || username,
+              offer,
+              callType: type || 'video',
+            });
+          });
+        } else {
+          socket.emit('callRejected', { reason: 'User is offline' });
+        }
       }
     });
 
     /**
-     * Accept a video call
+     * Accept a video/voice call
      */
-    socket.on('callAccepted', ({ to, answer }) => {
+    socket.on('callAccepted', async ({ to, answer, callLogId }) => {
+      // Update call log to answered
+      if (callLogId) {
+        try {
+          await CallLog.findByIdAndUpdate(callLogId, {
+            status: 'answered',
+            startedAt: new Date(),
+          });
+        } catch (err) {
+          console.error('Error updating call log on accept:', err);
+        }
+      }
+
       const callerSockets = onlineUsers.get(to);
       if (callerSockets) {
         callerSockets.forEach((socketId) => {
-          io.to(socketId).emit('callAccepted', { from: userId, answer });
+          io.to(socketId).emit('callAccepted', { from: userId, answer, callLogId });
         });
       }
     });
 
     /**
-     * Reject a video call
+     * Reject a video/voice call
      */
-    socket.on('callRejected', ({ to, reason }) => {
+    socket.on('callRejected', async ({ to, reason, callLogId }) => {
+      // Update call log to rejected
+      if (callLogId) {
+        try {
+          const log = await CallLog.findByIdAndUpdate(callLogId, {
+            status: 'rejected',
+            endedAt: new Date(),
+          }, { new: true })
+            .populate('caller', 'username displayName avatar')
+            .populate('receiver', 'username displayName avatar');
+
+          // Notify both parties of call log update
+          if (log) {
+            const callerSockets = onlineUsers.get(log.caller._id.toString());
+            const receiverSockets = onlineUsers.get(log.receiver._id.toString());
+            const logData = log.toObject();
+            if (callerSockets) callerSockets.forEach((sid) => io.to(sid).emit('callLogUpdated', logData));
+            if (receiverSockets) receiverSockets.forEach((sid) => io.to(sid).emit('callLogUpdated', logData));
+          }
+        } catch (err) {
+          console.error('Error updating call log on reject:', err);
+        }
+      }
+
       const callerSockets = onlineUsers.get(to);
       if (callerSockets) {
         callerSockets.forEach((socketId) => {
@@ -419,9 +499,42 @@ const initializeSocket = (io) => {
     });
 
     /**
-     * End a video call
+     * End a video/voice call
      */
-    socket.on('endCall', ({ to }) => {
+    socket.on('endCall', async ({ to, callLogId, duration }) => {
+      // Update call log with end time and duration
+      if (callLogId) {
+        try {
+          const updateData = {
+            endedAt: new Date(),
+          };
+          // If duration provided, use it; otherwise calculate from startedAt
+          if (duration !== undefined) {
+            updateData.duration = duration;
+          }
+          // Only mark as answered if it was previously ringing (might already be answered)
+          const existing = await CallLog.findById(callLogId);
+          if (existing && existing.status === 'ringing') {
+            updateData.status = 'missed';
+          }
+
+          const log = await CallLog.findByIdAndUpdate(callLogId, updateData, { new: true })
+            .populate('caller', 'username displayName avatar')
+            .populate('receiver', 'username displayName avatar');
+
+          // Notify both parties of final call log
+          if (log) {
+            const logData = log.toObject();
+            const callerSockets = onlineUsers.get(log.caller._id.toString());
+            const receiverSockets = onlineUsers.get(log.receiver._id.toString());
+            if (callerSockets) callerSockets.forEach((sid) => io.to(sid).emit('callLogUpdated', logData));
+            if (receiverSockets) receiverSockets.forEach((sid) => io.to(sid).emit('callLogUpdated', logData));
+          }
+        } catch (err) {
+          console.error('Error updating call log on end:', err);
+        }
+      }
+
       const peerSockets = onlineUsers.get(to);
       if (peerSockets) {
         peerSockets.forEach((socketId) => {

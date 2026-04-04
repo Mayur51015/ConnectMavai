@@ -13,6 +13,7 @@ const messageRoutes = require('./routes/messageRoutes');
 const userRoutes = require('./routes/userRoutes');
 const roomRoutes = require('./routes/roomRoutes');
 const contactRoutes = require('./routes/contactRoutes');
+const callRoutes = require('./routes/callRoutes');
 
 // Import socket handler
 const { initializeSocket } = require('./socket/socketHandler');
@@ -47,6 +48,7 @@ app.use('/api/messages', messageRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/contacts', contactRoutes);
+app.use('/api/calls', callRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
@@ -75,3 +77,4 @@ mongoose
   });
 
 module.exports = { app, server, io };
+

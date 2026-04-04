@@ -43,6 +43,10 @@ const userSchema = new mongoose.Schema({
     maxlength: [200, 'Bio cannot exceed 200 characters'],
     default: '',
   },
+  favouriteContacts: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+  }],
 }, {
   timestamps: true,
 });

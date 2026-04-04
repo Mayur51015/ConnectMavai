@@ -143,13 +143,13 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
-  overflow: hidden;
-  height: 100vh;
+  overflow: auto;
+  min-height: 100vh;
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #root {
-  height: 100vh;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
 }
