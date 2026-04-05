@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import ThemeToggle from '../components/ThemeToggle';
 import toast from 'react-hot-toast';
 
 /**
@@ -51,6 +52,16 @@ const Register = () => {
 
   return (
     <div className="auth-page">
+      <div className="auth-navbar">
+        <Link to="/" className="auth-nav-home">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <polyline points="9 22 9 12 15 12 15 22" />
+          </svg>
+          Home
+        </Link>
+        <ThemeToggle />
+      </div>
       <div className="auth-container">
         {/* Decorative background shapes */}
         <div className="auth-bg-shape auth-bg-shape-1"></div>

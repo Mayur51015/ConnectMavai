@@ -9,12 +9,60 @@
 
 .auth-page {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
   padding: 20px;
   background: var(--bg-primary);
   overflow: auto;
+}
+
+/* Auth Navbar */
+.auth-navbar {
+  position: fixed;
+  top: 16px;
+  left: 32px;
+  right: auto;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  z-index: 100;
+}
+
+.auth-nav-home {
+  text-decoration: none;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-size: 0.92rem;
+  transition: color 0.2s ease;
+}
+
+.auth-nav-home:hover {
+  color: var(--text-primary);
+}
+
+.auth-navbar .theme-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.auth-navbar .theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
 }
 
 .auth-container {
@@ -933,6 +981,20 @@
    ============================================= */
 
 @media (max-width: 768px) {
+  .auth-navbar {
+    left: 20px;
+    gap: 12px;
+  }
+
+  .auth-nav-home {
+    font-size: 0.85rem;
+  }
+
+  .auth-navbar .theme-toggle {
+    width: 32px;
+    height: 32px;
+  }
+
   .sidebar-container {
     width: 100%;
     min-width: 100%;
@@ -980,6 +1042,26 @@
 }
 
 @media (max-width: 480px) {
+  .auth-navbar {
+    left: 16px;
+    top: 12px;
+    gap: 10px;
+  }
+
+  .auth-nav-home {
+    font-size: 0.8rem;
+  }
+
+  .auth-nav-home svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .auth-navbar .theme-toggle {
+    width: 32px;
+    height: 32px;
+  }
+
   .message-bubble {
     max-width: 88%;
   }
