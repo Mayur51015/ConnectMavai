@@ -23,6 +23,8 @@ const defaultAllowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://connect-mavai.vercel.app',
+  'https://connectmavai-2-0.onrender.com',
+  'https://connectmavai-1-0.onrender.com',
 ];
 
 const envOrigins = process.env.CLIENT_URL
