@@ -18,9 +18,10 @@ export const SocketProvider = ({ children }) => {
       // Create new socket connection with auth token
       const newSocket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
         auth: { token },
+        withCredentials: true,
         reconnection: true,
         reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
+        reconnectionAttempts: 10,
       });
 
       // Listen for online users updates
